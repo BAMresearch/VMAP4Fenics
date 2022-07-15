@@ -12,7 +12,7 @@ import os # checking for folder
 # current limitations:
 # only one geometry id, one coordinate system, element type, material, etc...
 
-class FenicsToVMAP():
+class vmap4fenics():
 	def __init__(self, filename = 'fenics_to_vmap', paraview_output = False, output_path = ''):
 
 		# initiale the vmap object
