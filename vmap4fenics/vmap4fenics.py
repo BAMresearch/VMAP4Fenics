@@ -1,4 +1,4 @@
-from VMAP import PyVMAP as VMAP             # VMAP Python Interface
+from vmap4fenics.VMAP import PyVMAP as VMAP  # VMAP Python Interface
 from datetime import datetime     # to get current time
 import numpy as np                # to do some vector cross products etc
 import dolfin as df               # to get some solution fields... maybe...
