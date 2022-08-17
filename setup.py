@@ -55,8 +55,8 @@ setup(
     author_email=EMAIL,
     python_requires=REQUIRES_PYTHON,
     url=URL,
-    packages=find_packages(),
-    package_data={'vmap4fenics.VMAP': ['_PyVMAP.so']},
+    packages=find_packages(where="src"),
+    #package_data={'vmap4fenics.VMAP': ['*.so']},
     # If your package is a single module, use this instead of 'packages':
     # py_modules=['mypackage'],
 
@@ -64,16 +64,12 @@ setup(
     #     'console_scripts': ['mycli=mymodule:cli'],
     # },
     install_requires=REQUIRED,
+    package_dir={"": "src"},
     include_package_data=True,
     license='3-Clause BSD License',
     classifiers=[
         # Trove classifiers
         # Full list: https://pypi.python.org/pypi?%3Aaction=list_classifiers
-        'License :: OSI Approved :: MIT License',
-        'Programming Language :: Python',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: Implementation :: CPython',
-        'Programming Language :: Python :: Implementation :: PyPy'
+        'Programming Language :: Python :: 3.9',
     ]
 )

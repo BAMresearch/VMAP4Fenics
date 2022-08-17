@@ -1,0 +1,1 @@
+include src/vmap4fenics/*.so

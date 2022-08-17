@@ -1,0 +1,41 @@
+{% set name = "vmap4fenics" %}
+{% set version = "0.0.1" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  url: file:///home/halbrech/Documents/VMAP4Fenics/dist/vmap4fenics-0.0.1.tar.gz
+  sha256: c4dce9108d7cbb52638ff01fb1d09faa3c6a2cba0ffce759b671880ca6ad7079
+
+build:
+  noarch: python
+  script: {{ PYTHON }} -m pip install . -vv
+  number: 0
+
+requirements:
+  host:
+    - pip
+    - python >=3.9
+  run:
+    - python >=3.9
+
+test:
+  imports:
+    - vmap4fenics
+  commands:
+    - pip check
+  requires:
+    - pip
+
+about:
+  home: https://github.com/BAMresearch/VMAP4Fenics
+  summary: 'VMAP Wrapper for Fenics FEM Simulations'
+  license: BSD-3-Clause
+  license_file:
+    - LICENSE.txt
+
+extra:
+  recipe-maintainers:
+    - halbrech
