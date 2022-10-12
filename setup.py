@@ -42,8 +42,6 @@ if not VERSION:
 else:
     about['__version__'] = VERSION
 
-print(REQUIRED)
-
 # Where the magic happens:
 setup(
     name=NAME,
@@ -56,16 +54,9 @@ setup(
     python_requires=REQUIRES_PYTHON,
     url=URL,
     packages=find_packages(where="src"),
-    #package_data={'vmap4fenics.VMAP': ['*.so']},
-    # If your package is a single module, use this instead of 'packages':
-    # py_modules=['mypackage'],
-
-    # entry_points={
-    #     'console_scripts': ['mycli=mymodule:cli'],
-    # },
-    install_requires=REQUIRED,
     package_dir={"": "src"},
     include_package_data=True,
+    install_requires=REQUIRED,
     license='3-Clause BSD License',
     classifiers=[
         # Trove classifiers

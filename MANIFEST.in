@@ -1,1 +1,1 @@
-include src/vmap4fenics/*.so
+include src/vmap4fenics/VMAP/*.so
