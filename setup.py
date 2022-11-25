@@ -31,7 +31,7 @@ try:
     with io.open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
         long_description = '\n' + f.read()
 except FileNotFoundError:
-    long_description = DESCRIPTION
+    long_description = DESCRIPTION # whats happening here???
 
 # Load the package's __version__.py module as a dictionary.
 about = {}
@@ -41,6 +41,8 @@ if not VERSION:
         exec(f.read(), about)
 else:
     about['__version__'] = VERSION
+
+
 
 # Where the magic happens:
 setup(
@@ -53,14 +55,15 @@ setup(
     author_email=EMAIL,
     python_requires=REQUIRES_PYTHON,
     url=URL,
-    packages=find_packages(where="src"),
-    package_dir={"": "src"},
-    include_package_data=True,
+    packages=find_packages(),
     install_requires=REQUIRED,
-    license='3-Clause BSD License',
+    include_package_data=True,
+    license='MIT',
     classifiers=[
         # Trove classifiers
         # Full list: https://pypi.python.org/pypi?%3Aaction=list_classifiers
-        'Programming Language :: Python :: 3.9',
+        'License :: OSI Approved :: MIT License',
+        'Programming Language :: Python',
+        'Programming Language :: Python :: 3',
     ]
 )
