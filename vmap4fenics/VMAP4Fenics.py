@@ -31,8 +31,6 @@ class VMAP4Fenics():
 		self.material_id = 1
 		self.elementtype_id = 1
 
-		self.vector_integrationtypes = VMAP.VectorTemplateIntegrationType()
-		self.vector_elementtype = VMAP.VectorTemplateElementType()
 		self.vector_variable = VMAP.VectorTemplateStateVariable()
 
 		self.state = 0
@@ -134,7 +132,11 @@ class VMAP4Fenics():
 		# add empy state to list
 		self.state_list[self.state] = VMAP.VectorTemplateStateVariable()
 
-	def set_geometry(self, vector_function_space, geometry_name = 'Mesh'):
+	def set_geometry(self, vector_function_space, geometry_name = 'Mesh', problem = None):
+		# TODO remove problem as input
+
+		self.vector_elementtype = VMAP.VectorTemplateElementType()
+
 		# includes data for gemoetry: nodes, element, element type
 		self.vector_function_space = vector_function_space
 
@@ -182,12 +184,11 @@ class VMAP4Fenics():
 		# add coordinates to points
 		for i in range(n_nodes):
 			self.geom_points.setPoint(i, i, self.node_list[i])
+		# write points to file
+		self.vmap_file.writePointsBlock(f"/VMAP/GEOMETRY/{self.geometry_id}", self.geom_points)
 
 		# elements
-		#------------------------
-		# set number of elements
 		self.geom_elems = VMAP.sElementBlock(n_elements)
-
 		for i in range(n_elements):
 			# generating vmap element object
 			element = VMAP.sElement()
@@ -205,10 +206,21 @@ class VMAP4Fenics():
 			element.myMaterialType = self.material_id  # currently only one material
 			# add element to geometry object
 			self.geom_elems.setElement(i, element)
+		# write elements to file
+		self.vmap_file.writeElementsBlock(f"/VMAP/GEOMETRY/{self.geometry_id}", self.geom_elems)
 
+		# integrationtype
+		self.vector_integrationtypes = VMAP.VectorTemplateIntegrationType()
+		self.set_integrationtype(problem.a,problem.L)
+		integr_type = VMAP.VMAPIntegrationTypeFactory_createVMAPIntegrationType(self.elementtype_args[3])
+		self.vector_integrationtypes.push_back(integr_type)
+		self.vmap_file.writeIntegrationTypes(self.vector_integrationtypes)
 
-
-
+		# elementtype
+		eleType = VMAP.VMAPElementTypeFactory.createVMAPElementType(*self.elementtype_args)
+		eleType.setIdentifier(self.elementtype_id)
+		self.vector_elementtype.push_back(eleType)
+		self.vmap_file.writeElementTypes(self.vector_elementtype)
 
 	def set_variable_displacement(self,u):
 		# TODO what changes when more dofs than only displacement?
@@ -405,25 +417,6 @@ class VMAP4Fenics():
 		# add meta information to VMAP File
 		self.vmap_file.writeMetaInformation(self.meta_info)
 
-		# write points to file
-		self.vmap_file.writePointsBlock(f"/VMAP/GEOMETRY/{self.geometry_id}", self.geom_points)
-
-		# write elements to file
-		self.vmap_file.writeElementsBlock(f"/VMAP/GEOMETRY/{self.geometry_id}", self.geom_elems)
-
-		# write integration type
-		# set the integration type
-		integr_type = VMAP.VMAPIntegrationTypeFactory_createVMAPIntegrationType(self.elementtype_args[3])  # testing
-		self.vector_integrationtypes.push_back(integr_type)
-		self.vmap_file.writeIntegrationTypes(self.vector_integrationtypes)
-
-		# write element type
-		eleType = VMAP.VMAPElementTypeFactory.createVMAPElementType(*self.elementtype_args)
-		eleType.setIdentifier(self.elementtype_id)
-		self.vector_elementtype.push_back(eleType)
-
-		self.vmap_file.writeElementTypes(self.vector_elementtype)
-
 		# writing variables...
 		for key in self.state_list:
 			self.vmap_file.writeVariablesBlock(f"/VMAP/VARIABLES/STATE-{key}/{self.geometry_id}", self.state_list[key])
@@ -572,4 +565,3 @@ class VMAP4Fenics():
 							**problem.material_optional,
 							paramters = [(x, f'Data field for {x.lower()}', y) for (x, y) in problem.p.items()]
 							)
-		self.set_integrationtype(problem.a,problem.L)
