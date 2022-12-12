@@ -1,13 +1,14 @@
-import PyVMAP as VMAP  # VMAP Python Interface
-from datetime import datetime     # to get current time
-import numpy as np                # to do some vector cross products etc
-import dolfin as df               # to get some solution fields... maybe...
-# to estimate number of integration points
-from ufl.algorithms import estimate_total_polynomial_degree
-from ufl.algorithms import expand_derivatives
-from ffc.fiatinterface import create_quadrature
+from datetime import datetime  # to get current time
+from os import mkdir
+from os.path import isdir
 
-import os # checking for folder
+import dolfin as df  # to get some solution fields... maybe...
+import numpy as np  # to do some vector cross products etc
+import PyVMAP as VMAP  # VMAP Python Interface
+from ffc.fiatinterface import \
+    create_quadrature  # to estimate number of integration points
+from ufl.algorithms import estimate_total_polynomial_degree, expand_derivatives
+import ufl
 
 # current limitations:
 # only one geometry id, one coordinate system, element type, material, etc...
@@ -17,19 +18,10 @@ class VMAP4Fenics():
 
 		# initiale the vmap object
 		VMAP.Initialize()
-
-		# generate and name output file
-		# check if folder exist, if not, create output folder
-		if not os.path.isdir(output_path):
-			os.mkdir(output_path)
+		if not isdir(output_path):
+			mkdir(output_path)
 		self.output_path = output_path + '/'
 		self.vmap_file = VMAP.VMAPFile(f'{self.output_path}{filename}_VMAP.h5')
-
-		# define geometry id, I do not know when multiple ids are relevant
-		self.geometry_id = 0
-		self.coordinatesystem_id = 1
-		self.material_id = 1
-		self.elementtype_id = 1
 
 		self.vector_variable = VMAP.VectorTemplateStateVariable()
 
@@ -44,7 +36,6 @@ class VMAP4Fenics():
 		self.variable_id = 0
 
 		# add metaInfo
-		self.meta_info = VMAP.sMetaInformation()
 
 		# initialize paraview output
 		self.paraview_output = paraview_output
@@ -53,19 +44,83 @@ class VMAP4Fenics():
 			self.pv_file.parameters["flush_output"] = True
 			self.pv_file.parameters["functions_share_mesh"] = True
 
+	
+	def write_system_data(self):
+		# Version
+		#version = VMAP.sVersion()
+		#self.vmap_file.writeVersion(version) ???
+		self.write_metadata()
+		# UnitSystem
+		self.write_unitsystem()
+		# CoordinateSystem
+		self.write_coordinatesystem()
+		# Units
+		# TODO
 
-	def set_material(self, name, material_id, type = 'unknown', description = 'unknown', state = 'solid',
-						   idealization = 'unknown', physics = 'unknown', solution = 'unknown', paramters = None):
+	def write_metadata(self, user_id = 'unknown', description = 'FEM Simulation'):
+		meta_info = VMAP.sMetaInformation()
+
+		# tool/solver name
+		meta_info.setExporterName('Fenics to VMAP Wrapper')
+
+		# current time and date
+		now = datetime.now()
+		current_time = now.strftime('%H:%M:%S')
+		meta_info.setFileTime(current_time)
+		today = datetime.today()
+		current_date = today.strftime('%Y-%m-%d')
+		meta_info.setFileDate(current_date)
+
+		# file description
+		meta_info.setDescription(description)
+
+		# add user id
+		meta_info.setUserId(user_id)
+
+		# analysis type
+		meta_info.setAnalysisType('FEM Analysis')
+
+		self.vmap_file.writeMetaInformation(meta_info)
+
+	def write_unitsystem(self):
+		unitSystem=VMAP.sUnitSystem()
+		unitSystem.getLengthUnit().setUnitSymbol(             "m")
+		unitSystem.getMassUnit().setUnitSymbol(              "kg")
+		unitSystem.getTimeUnit().setUnitSymbol(               "s")
+		unitSystem.getCurrentUnit().setUnitSymbol(            "A")
+		unitSystem.getTemperatureUnit().setUnitSymbol(        "K")
+		unitSystem.getAmountOfSubstanceUnit().setUnitSymbol("mol")
+		unitSystem.getLuminousIntensityUnit().setUnitSymbol( "cd")
+		self.vmap_file.writeUnitSystem(unitSystem)
+
+	def write_coordinatesystem(self):
+		self.coordinatesystem_id = 1
+		systems = []
+		systems.append(np.array((self.coordinatesystem_id,   VMAP.sCoordinateSystem.CARTESIAN_LEFT_HAND,  (0., 0., 0.), (1., 0., 0., 0., 1., 0., 0., 0., 0.)), dtype=VMAP.sCoordinateSystem))
+		vsystems=VMAP.VectorTemplateCoordinateSystem()
+
+		for item in systems:
+			csys = VMAP.sCoordinateSystem()
+			csys.myIdentifier = item[0]
+			csys.myType = item[1]
+			csys.setReferencePoint(item[2])
+			csys.setAxisVector(0,item[3][0:3])
+			csys.setAxisVector(1,item[3][3:6])
+			csys.setAxisVector(2,item[3][6:9])
+		vsystems.push_back(csys)
+		self.vmap_file.writeCoordinateSystems("/VMAP/SYSTEM",vsystems)	
+
+	def set_material(self, name, material_id, material_type = 'unknown', material_description = 'unknown', 
+					material_state = 'solid', material_idealization = 'unknown', physics = 'unknown', 
+					solution = 'unknown', paramters = None):
+		
 		self.material = VMAP.sMaterial()
-
 		# TODO automatic material counter, maybe with optional direct number attribuite and a check if id exists...
-		self.material.setIdentifier(1)
 		self.material.setMaterialName(name.upper())
-
 		# solid, liquid, gas ...
-		self.material.setMaterialState(state)
-		self.material.setMaterialType(type)
-		self.material.setMaterialDescription(description)
+		self.material.setMaterialState(material_state)
+		self.material.setMaterialType(material_type)
+		self.material.setMaterialDescription(material_description)
 		self.material.setMaterialSupplier('not applicable')
 
 		# material card, supposed to be solver specific???
@@ -73,7 +128,7 @@ class VMAP4Fenics():
 		material_card.setIdentifier(material_id)
 
 		# Provides the idealisation of the material e.g. shell, beam, solid etc.
-		material_card.setIdealization(idealization)
+		material_card.setIdealization(material_idealization)
 		material_card.setModelName(material_id)     # one more name...
 		material_card.setPhysics(physics)           # Explains the physics behind the material e.g. solid mechanics, fluid mechanics, heat transfer etc.
 		material_card.setSolution(solution)         # Explains the type of solution e.g. implicit, explicit etc.
@@ -119,7 +174,7 @@ class VMAP4Fenics():
 
 		# set a default name for the new state
 		if not state_name:
-			state_name = f'Loading at time {dt * self.state}'
+			state_name = f'Loading at time {self.time}'
 
 		# add new vmap state
 		self.vmap_file.createVariablesGroup(self.state, self.geometry_id)
@@ -138,6 +193,11 @@ class VMAP4Fenics():
 		# includes data for gemoetry: nodes, element, element type
 		self.vector_function_space = vector_function_space
 
+		# so far only one id
+		self.geometry_id = 1
+		element_type_id = 1
+		material_id = 1
+
 		# ------------------------------------------------------------------------
 		# EXTRACT MESH DATA
 		# ------------------------------------------------------------------------
@@ -154,9 +214,9 @@ class VMAP4Fenics():
 		# get the vmap element type and number of nodes based on fenics information
 		vmap_element_type_number, n_element_nodes = self._determine_vmap_element(self.element_shape, self.element_polynomial_degree)
 		# get a list of nodal coordinates
-		self.node_list, _element_list = self._determine_nodes_and_connectivity(n_element_nodes)
+		node_list, _element_list = self._determine_nodes_and_connectivity(n_element_nodes)
 		# number of nodes in mesh
-		n_nodes = len(self.node_list)
+		n_nodes = len(node_list)
 		# ------------------------------------------------------------------------
 		# SET ELEMENT TYPE DATA
 		# ------------------------------------------------------------------------
@@ -176,7 +236,7 @@ class VMAP4Fenics():
 		points = VMAP.sPointsBlock(n_nodes)
 		# add coordinates to points
 		for i in range(n_nodes):
-			points.setPoint(i, i, self.node_list[i])
+			points.setPoint(i, i, node_list[i])
 		self.vmap_file.writePointsBlock(f"/VMAP/GEOMETRY/{self.geometry_id}", points)
 
 		# elements
@@ -187,7 +247,7 @@ class VMAP4Fenics():
 			# set element type
 			element.myElementType = vmap_element_type_number
 			# determine the correct order of elemental nodes
-			_vmap_connectivity = self._determine_order_of_nodes(vmap_element_type_number, _element_list[i], self.node_list)
+			_vmap_connectivity = self._determine_order_of_nodes(vmap_element_type_number, _element_list[i], node_list)
 			# set the connectivity for each element
 			element.setConnectivity(_vmap_connectivity)
 			# define element id
@@ -195,7 +255,7 @@ class VMAP4Fenics():
 			# global coordinate system
 			element.myCoordinateSystem = self.coordinatesystem_id # as defined earlier...
 			# set material, currently preset to 1
-			element.myMaterialType = self.material_id  # currently only one material
+			element.myMaterialType = material_id  # currently only one material
 			# add element to geometry object
 			element_block.setElement(i, element)
 		# write elements to file
@@ -212,7 +272,7 @@ class VMAP4Fenics():
 
 		# elementtype
 		element_type = VMAP.VMAPElementTypeFactory.createVMAPElementType(*elementtype_args)
-		element_type.setIdentifier(self.elementtype_id)
+		element_type.setIdentifier(element_type_id)
 		vector_elementtype = VMAP.VectorTemplateElementType()
 		vector_elementtype.push_back(element_type)
 		self.vmap_file.writeElementTypes(vector_elementtype)
@@ -348,7 +408,7 @@ class VMAP4Fenics():
 		if location in num2locint: return num2locint[location]
 		else: raise ValueError(location)
 
-	def set_integrationtype(self,*args):
+	def set_integrationtype(self, *args : dict[str, ufl.form.Form]):
 		# for each form passed to function, test maximun degree
 		max_degree = 0
 		for item in args:
@@ -382,33 +442,9 @@ class VMAP4Fenics():
 		else: raise ValueError(f'''{str(self.element_shape)} is an unexpected element shape. Use 'triangle' or 'tetrahedron'.''')
 		return integration_id
 
-
-
-	def set_metadata(self, user_id = 'unknown', description = 'FEM Simulation'):
-		# tool/solver name
-		self.meta_info.setExporterName('Fenics to VMAP Wrapper')
-
-		# current time and date
-		now = datetime.now()
-		current_time = now.strftime('%H:%M:%S')
-		self.meta_info.setFileTime(current_time)
-		today = datetime.today()
-		current_date = today.strftime('%Y-%m-%d')
-		self.meta_info.setFileDate(current_date)
-
-		# file description
-		self.meta_info.setDescription(description)
-
-		# add user id
-		self.meta_info.setUserId(user_id)
-
-		# analysis type
-		self.meta_info.setAnalysisType('FEM Analysis')
-
-
 	def export_to_vmap(self):
 		# add meta information to VMAP File
-		self.vmap_file.writeMetaInformation(self.meta_info)
+		self.vmap_file.writeMetaInformation(meta_info)
 
 		# writing variables...
 		for key in self.state_list:
@@ -552,7 +588,7 @@ class VMAP4Fenics():
 		self.next_state()
 
 	def setup(self, problem):
-		self.set_geometry(problem.V)
+		self.set_geometry(problem.V, problem)
 		self.set_material(name = problem.name,
 							material_id = problem.material_id,
 							**problem.material_optional,
