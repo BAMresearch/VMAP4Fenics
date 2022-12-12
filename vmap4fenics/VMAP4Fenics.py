@@ -132,10 +132,8 @@ class VMAP4Fenics():
 		# add empy state to list
 		self.state_list[self.state] = VMAP.VectorTemplateStateVariable()
 
-	def set_geometry(self, vector_function_space, geometry_name = 'Mesh', problem = None):
+	def set_geometry(self, vector_function_space : df.VectorFunctionSpace, geometry_name : str = 'Mesh', problem = None):
 		# TODO remove problem as input
-
-		self.vector_elementtype = VMAP.VectorTemplateElementType()
 
 		# includes data for gemoetry: nodes, element, element type
 		self.vector_function_space = vector_function_space
@@ -168,27 +166,21 @@ class VMAP4Fenics():
 		# set the interploation type
 		interpolatonType = self._determine_vmap_interpolation(self.element_polynomial_degree)
 
-		# integration_id ist defined later
-		integration_id = -1
-		self.elementtype_args = [self.spacial_dimension,vmap_element_type_number, interpolatonType, integration_id]
-
 		# ------------------------------------------------------------------------
 		# SET GEOMETRY
 		# ------------------------------------------------------------------------
 		# svmap geometry group
 		self.vmap_file.createGeometryGroup(self.geometry_id, geometry_name)
 
-		# list with node coordinates
-		self.geom_points = VMAP.sPointsBlock(n_nodes)
-		# ------------------------------------------------------------------------
+		# points
+		points = VMAP.sPointsBlock(n_nodes)
 		# add coordinates to points
 		for i in range(n_nodes):
-			self.geom_points.setPoint(i, i, self.node_list[i])
-		# write points to file
-		self.vmap_file.writePointsBlock(f"/VMAP/GEOMETRY/{self.geometry_id}", self.geom_points)
+			points.setPoint(i, i, self.node_list[i])
+		self.vmap_file.writePointsBlock(f"/VMAP/GEOMETRY/{self.geometry_id}", points)
 
 		# elements
-		self.geom_elems = VMAP.sElementBlock(n_elements)
+		element_block = VMAP.sElementBlock(n_elements)
 		for i in range(n_elements):
 			# generating vmap element object
 			element = VMAP.sElement()
@@ -205,22 +197,25 @@ class VMAP4Fenics():
 			# set material, currently preset to 1
 			element.myMaterialType = self.material_id  # currently only one material
 			# add element to geometry object
-			self.geom_elems.setElement(i, element)
+			element_block.setElement(i, element)
 		# write elements to file
-		self.vmap_file.writeElementsBlock(f"/VMAP/GEOMETRY/{self.geometry_id}", self.geom_elems)
+		self.vmap_file.writeElementsBlock(f"/VMAP/GEOMETRY/{self.geometry_id}", element_block)
+
+		# elementtype_args
+		elementtype_args = [self.spacial_dimension,vmap_element_type_number, interpolatonType, self.set_integrationtype(problem.a, problem.L)]
 
 		# integrationtype
-		self.vector_integrationtypes = VMAP.VectorTemplateIntegrationType()
-		self.set_integrationtype(problem.a,problem.L)
-		integr_type = VMAP.VMAPIntegrationTypeFactory_createVMAPIntegrationType(self.elementtype_args[3])
-		self.vector_integrationtypes.push_back(integr_type)
-		self.vmap_file.writeIntegrationTypes(self.vector_integrationtypes)
+		vector_integrationtypes = VMAP.VectorTemplateIntegrationType()
+		integr_type = VMAP.VMAPIntegrationTypeFactory_createVMAPIntegrationType(elementtype_args[3])
+		vector_integrationtypes.push_back(integr_type)
+		self.vmap_file.writeIntegrationTypes(vector_integrationtypes)
 
 		# elementtype
-		eleType = VMAP.VMAPElementTypeFactory.createVMAPElementType(*self.elementtype_args)
-		eleType.setIdentifier(self.elementtype_id)
-		self.vector_elementtype.push_back(eleType)
-		self.vmap_file.writeElementTypes(self.vector_elementtype)
+		element_type = VMAP.VMAPElementTypeFactory.createVMAPElementType(*elementtype_args)
+		element_type.setIdentifier(self.elementtype_id)
+		vector_elementtype = VMAP.VectorTemplateElementType()
+		vector_elementtype.push_back(element_type)
+		self.vmap_file.writeElementTypes(vector_elementtype)
 
 	def set_variable_displacement(self,u):
 		# TODO what changes when more dofs than only displacement?
@@ -385,9 +380,7 @@ class VMAP4Fenics():
 			elif self.num_integration_points == 15: integration_id = 804	#GAUSS_TETRAHEDRON_15
 			else: raise ValueError(f'{self.num_integration_points} is an unexpected number of integration points for a tetrahedron. Use 1, 4, 8, 11, 15 as Input.')
 		else: raise ValueError(f'''{str(self.element_shape)} is an unexpected element shape. Use 'triangle' or 'tetrahedron'.''')
-
-		# update the integration type
-		self.elementtype_args[3] = integration_id
+		return integration_id
 
 
 
