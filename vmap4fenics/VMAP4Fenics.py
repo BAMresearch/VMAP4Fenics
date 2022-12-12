@@ -32,17 +32,8 @@ class VMAP4Fenics():
 		# sum of timesteps
 		self.time = 0
 
-		self.next_state(incr=0, state_name='Initial conditions')
+		#self.next_state(incr=0, state_name='Initial conditions')
 		self.variable_id = 0
-
-		# add metaInfo
-
-		# initialize paraview output
-		self.paraview_output = paraview_output
-		if self.paraview_output:
-			self.pv_file = df.XDMFFile(f'{self.output_path}{filename}_paraview.xdmf')
-			self.pv_file.parameters["flush_output"] = True
-			self.pv_file.parameters["functions_share_mesh"] = True
 
 	
 	def write_system_data(self):
@@ -59,10 +50,8 @@ class VMAP4Fenics():
 
 	def write_metadata(self, user_id = 'unknown', description = 'FEM Simulation'):
 		meta_info = VMAP.sMetaInformation()
-
 		# tool/solver name
 		meta_info.setExporterName('Fenics to VMAP Wrapper')
-
 		# current time and date
 		now = datetime.now()
 		current_time = now.strftime('%H:%M:%S')
@@ -70,16 +59,12 @@ class VMAP4Fenics():
 		today = datetime.today()
 		current_date = today.strftime('%Y-%m-%d')
 		meta_info.setFileDate(current_date)
-
 		# file description
 		meta_info.setDescription(description)
-
 		# add user id
 		meta_info.setUserId(user_id)
-
 		# analysis type
 		meta_info.setAnalysisType('FEM Analysis')
-
 		self.vmap_file.writeMetaInformation(meta_info)
 
 	def write_unitsystem(self):
@@ -96,7 +81,7 @@ class VMAP4Fenics():
 	def write_coordinatesystem(self):
 		self.coordinatesystem_id = 1
 		systems = []
-		systems.append(np.array((self.coordinatesystem_id,   VMAP.sCoordinateSystem.CARTESIAN_LEFT_HAND,  (0., 0., 0.), (1., 0., 0., 0., 1., 0., 0., 0., 0.)), dtype=VMAP.sCoordinateSystem))
+		systems.append(np.array((self.coordinatesystem_id,   VMAP.sCoordinateSystem.CARTESIAN_LEFT_HAND,  (0., 0., 0.), (1., 0., 0., 0., 1., 0., 0., 0., 1.)), dtype=VMAP.sCoordinateSystem))
 		vsystems=VMAP.VectorTemplateCoordinateSystem()
 
 		for item in systems:
@@ -143,21 +128,10 @@ class VMAP4Fenics():
 				material_parameter.setDescription(str(paramter[1]))
 				material_parameter.setValue(str(paramter[2]))
 				vector_parameter.push_back(material_parameter)
-
 			material_card.setParameters(vector_parameter)
-
-		# TODO integrate unitsystem correctly
-		#material_card.myUnitSystem(1)
 		self.material.setMaterialCard(material_card)
-
-		# TODO find out how to export paramater block to VMAP
-
 		self.vector_material = VMAP.VectorTemplateMaterial()
 		self.vector_material.push_back(self.material)
-
-		# add meta information to VMAP File
-		#self.file.writeMaterial('testMaterial',self.material)
-
 		self.vmap_file.writeMaterialBlock(self.vector_material)
 
 
@@ -187,7 +161,7 @@ class VMAP4Fenics():
 		# add empy state to list
 		self.state_list[self.state] = VMAP.VectorTemplateStateVariable()
 
-	def set_geometry(self, vector_function_space : df.VectorFunctionSpace, geometry_name : str = 'Mesh', problem = None):
+	def set_geometry(self, vector_function_space : df.VectorFunctionSpace, functions : list[str, ufl.form.Form] = None, geometry_name : str = 'Mesh'):
 		# TODO remove problem as input
 
 		# includes data for gemoetry: nodes, element, element type
@@ -262,7 +236,7 @@ class VMAP4Fenics():
 		self.vmap_file.writeElementsBlock(f"/VMAP/GEOMETRY/{self.geometry_id}", element_block)
 
 		# elementtype_args
-		elementtype_args = [self.spacial_dimension,vmap_element_type_number, interpolatonType, self.set_integrationtype(problem.a, problem.L)]
+		elementtype_args = [self.spacial_dimension,vmap_element_type_number, interpolatonType, self.set_integrationtype(functions)]
 
 		# integrationtype
 		vector_integrationtypes = VMAP.VectorTemplateIntegrationType()
@@ -341,16 +315,6 @@ class VMAP4Fenics():
 						  description='stress',
 						  )
 
-		# Plot stress
-		# paraview_output
-		if self.paraview_output:
-			# Output Data
-			tensor_function_space = df.TensorFunctionSpace(self.vector_function_space.mesh(), self.vector_function_space.ufl_element().family(), self.vector_function_space.ufl_element().degree())
-			# Plot displacements
-			pv_stress = df.Function(tensor_function_space, name='Stress')
-			pv_stress.assign(df.project(stress_field, tensor_function_space))
-			self.pv_file.write(pv_stress, self.state)  # Save solution to file in XDMF format
-
 	def set_variable(self,name, values, location, coordinatesystem = 1, description = None):
 		if isinstance(values, np.ndarray):
 			if values.ndim == 1:
@@ -408,10 +372,10 @@ class VMAP4Fenics():
 		if location in num2locint: return num2locint[location]
 		else: raise ValueError(location)
 
-	def set_integrationtype(self, *args : dict[str, ufl.form.Form]):
+	def set_integrationtype(self, functions : list[str, ufl.form.Form]):
 		# for each form passed to function, test maximun degree
 		max_degree = 0
-		for item in args:
+		for item in functions:
 			# get estimated degree from form
 			degree = estimate_total_polynomial_degree(expand_derivatives(item))
 			# test maximum
@@ -443,9 +407,6 @@ class VMAP4Fenics():
 		return integration_id
 
 	def export_to_vmap(self):
-		# add meta information to VMAP File
-		self.vmap_file.writeMetaInformation(meta_info)
-
 		# writing variables...
 		for key in self.state_list:
 			self.vmap_file.writeVariablesBlock(f"/VMAP/VARIABLES/STATE-{key}/{self.geometry_id}", self.state_list[key])
