@@ -44,7 +44,7 @@ def three_point_bending_example(E, nu):
 					physics = 'solid mechanics'
 					)
 	wrapper = VMAP4Fenics.VMAP4Fenics(filename = 'test', paraview_output = False, output_path = 'resultsBeam')
-	wrapper.set_metadata(user_id='ahannes')
+	wrapper.write_metadata(user_id='ahannes')
 	wrapper.setup(problem)
 
 	# applying the load

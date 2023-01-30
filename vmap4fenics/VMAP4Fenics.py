@@ -7,14 +7,14 @@ import numpy as np  # to do some vector cross products etc
 import PyVMAP as VMAP  # VMAP Python Interface
 from ffc.fiatinterface import \
     create_quadrature  # to estimate number of integration points
+from ufl import Form as Form  # only for type anotations
 from ufl.algorithms import estimate_total_polynomial_degree, expand_derivatives
-import ufl
 
 # current limitations:
 # only one geometry id, one coordinate system, element type, material, etc...
 
 class VMAP4Fenics():
-	def __init__(self, filename = 'fenics_to_vmap', paraview_output = False, output_path = ''):
+	def __init__(self, filename = 'fenics_to_vmap', output_path = ''):
 
 		# initiale the vmap object
 		VMAP.Initialize()
@@ -23,30 +23,11 @@ class VMAP4Fenics():
 		self.output_path = output_path + '/'
 		self.vmap_file = VMAP.VMAPFile(f'{self.output_path}{filename}_VMAP.h5')
 
-		self.vector_variable = VMAP.VectorTemplateStateVariable()
-
-		self.state = 0
-		# initialize state list
-		self.state_list = {}
-
+		self.state_id = 0
 		# sum of timesteps
 		self.time = 0
-
 		#self.next_state(incr=0, state_name='Initial conditions')
 		self.variable_id = 0
-
-	
-	def write_system_data(self):
-		# Version
-		#version = VMAP.sVersion()
-		#self.vmap_file.writeVersion(version) ???
-		self.write_metadata()
-		# UnitSystem
-		self.write_unitsystem()
-		# CoordinateSystem
-		self.write_coordinatesystem()
-		# Units
-		# TODO
 
 	def write_metadata(self, user_id = 'unknown', description = 'FEM Simulation'):
 		meta_info = VMAP.sMetaInformation()
@@ -81,7 +62,7 @@ class VMAP4Fenics():
 	def write_coordinatesystem(self):
 		self.coordinatesystem_id = 1
 		systems = []
-		systems.append(np.array((self.coordinatesystem_id,   VMAP.sCoordinateSystem.CARTESIAN_LEFT_HAND,  (0., 0., 0.), (1., 0., 0., 0., 1., 0., 0., 0., 1.)), dtype=VMAP.sCoordinateSystem))
+		systems.append(np.array((self.coordinatesystem_id, VMAP.sCoordinateSystem.CARTESIAN_LEFT_HAND,  (0., 0., 0.), (1., 0., 0., 0., 1., 0., 0., 0., 1.)), dtype=VMAP.sCoordinateSystem))
 		vsystems=VMAP.VectorTemplateCoordinateSystem()
 
 		for item in systems:
@@ -138,8 +119,8 @@ class VMAP4Fenics():
 
 	#def __call__(self, inp):
 	def next_state(self, dt = 0, incr = 1, state_name = None, time = None):
-		# increase counter
-		self.state += incr
+		self.state = VMAP.VectorTemplateStateVariable()
+		self.state_id += incr
 		self.time += dt
 		# if a specific value is given, this overrides the "calculated" time
 		# this can be useful when only plotting a certain timesteps
@@ -149,20 +130,13 @@ class VMAP4Fenics():
 		# set a default name for the new state
 		if not state_name:
 			state_name = f'Loading at time {self.time}'
-
 		# add new vmap state
-		self.vmap_file.createVariablesGroup(self.state, self.geometry_id)
+		self.vmap_file.createVariablesGroup(self.state_id, self.geometry_id)
 		# increment is preset to 1. values larger 1 would allow for multiple increments in one step (for whatever reason)
-		self.vmap_file.setVariableStateInformation(stateId=self.state, stateName=state_name,
+		self.vmap_file.setVariableStateInformation(stateId=self.state_id, stateName=state_name,
 										 totalTime=self.time, stepTime=dt, increment=1)
 
-		self.vector_variable = VMAP.VectorTemplateStateVariable()
-
-		# add empy state to list
-		self.state_list[self.state] = VMAP.VectorTemplateStateVariable()
-
-	def set_geometry(self, vector_function_space : df.VectorFunctionSpace, functions : list[str, ufl.form.Form] = None, geometry_name : str = 'Mesh'):
-		# TODO remove problem as input
+	def set_geometry(self, vector_function_space : df.VectorFunctionSpace, functions : list[str, Form] = None, geometry_name : str = 'Mesh'):
 
 		# includes data for gemoetry: nodes, element, element type
 		self.vector_function_space = vector_function_space
@@ -251,70 +225,6 @@ class VMAP4Fenics():
 		vector_elementtype.push_back(element_type)
 		self.vmap_file.writeElementTypes(vector_elementtype)
 
-	def set_variable_displacement(self,u):
-		# TODO what changes when more dofs than only displacement?
-		if self.n_node_dofs != self.spacial_dimension:
-			print('WARNING: Number of DOFs unequal to spacial dimention. There maybe problems with exporting displacement values to VMAP.')
-
-		displacement_array = np.reshape(u.vector().get_local(),(-1,self.n_node_dofs))
-
-		self.set_variable(values = displacement_array,
-					 name='DISPLACEMENT',
-					 location='node',
-					 description='vector of location change, compared to initial state'
-					 )
-
-		# paraview_output
-		if self.paraview_output:
-			# Output Data
-			tensor_function_space = df.TensorFunctionSpace(self.vector_function_space.mesh(), self.vector_function_space.ufl_element().family(), self.vector_function_space.ufl_element().degree())
-			# Plot displacements
-			pv_displacement = df.Function(tensor_function_space, name='Displacement')
-			pv_displacement.assign(u)
-			self.pv_file.write(pv_displacement, self.state)  # Save solution to file in XDMF format
-
-
-
-	def set_variable_stress(self, stress_field, symmetric = False):
-		# export of stress at nodes
-
-		# generate a tensor function space based on mesh, to project the stress tensor
-		tensor_function_space = df.TensorFunctionSpace(self.vector_function_space.mesh(), self.vector_function_space.ufl_element().family(), self.vector_function_space.ufl_element().degree())
-		stress = df.Function(tensor_function_space, name='Stress')
-		stress.assign(df.project(stress_field, tensor_function_space))
-
-		# check for spacial dimension
-		if self.spacial_dimension == 1: vmap_stress_array = np.reshape(stress.vector().get_local(), (-1, 1))	# reshape list to array
-		elif self.spacial_dimension == 2:
-			# reshape list to array
-			stress_array = np.reshape(stress.vector().get_local(), (-1, 4))
-
-			# reorder stress tensor to VMAP standard, check for symmetry
-			# XX,YY,ZZ,XY,YZ,XZ,YX,ZY,ZX
-			vmap_stress_array = np.empty(shape=(len(stress_array), 3)) if symmetric else np.empty(shape=(len(stress_array), 4))
-
-			for i, entry in enumerate(stress_array):
-				vmap_stress_array[i] = [entry[0], entry[3], entry[1]] if symmetric else [entry[0], entry[3], entry[1], entry[2]]
-		elif self.spacial_dimension == 3:
-			# reshape list to array
-			stress_array = np.reshape(stress.vector().get_local(), (-1, 9))
-
-			# reorder stress tensor to VMAP standard, check for symmetry
-			# XX,YY,ZZ,XY,YZ,XZ,YX,ZY,ZX
-			vmap_stress_array = np.empty(shape=(len(stress_array), 6)) if symmetric else np.empty(shape=(len(stress_array), 9))
-			for i, entry in enumerate(stress_array):
-				if symmetric: vmap_stress_array[i] = [entry[0], entry[4], entry[8], entry[1], entry[5], entry[2]]
-				else: vmap_stress_array[i] = [entry[0], entry[4], entry[8], entry[1], entry[5], entry[2], entry[3],
-											entry[7], entry[6]]
-		else:
-			raise ValueError(f'{self.spacial_dimension} is an unexpected spacial dimesion. Use 1, 2 or 3 as Input.')
-
-		self.set_variable(values=vmap_stress_array,
-						  name='STRESS',
-						  location='node',
-						  description='stress',
-						  )
-
 	def set_variable(self,name, values, location, coordinatesystem = 1, description = None):
 		if isinstance(values, np.ndarray):
 			if values.ndim == 1:
@@ -349,7 +259,7 @@ class VMAP4Fenics():
 		variable.setVariableName(name)
 		variable.setVariableDescription(description)
 		variable.setDimension(dimension)
-		variable.setLocation(loc=location_int)
+		variable.setLocation(loc = location_int)
 		variable.setValues(value_list)
 
 		# MYMULTIPLICITY refers to the numer of columns in the MYVALUES dataset,
@@ -357,7 +267,7 @@ class VMAP4Fenics():
 		variable.setMultiplicity(1)
 
 		# add variable to state object
-		self.state_list[self.state].push_back(variable)
+		self.state.push_back(variable)
 		self.variable_id += 1
 
 	def get_location_int_from_location(self, location):
@@ -372,7 +282,7 @@ class VMAP4Fenics():
 		if location in num2locint: return num2locint[location]
 		else: raise ValueError(location)
 
-	def set_integrationtype(self, functions : list[str, ufl.form.Form]):
+	def set_integrationtype(self, functions : list[str, Form]):
 		# for each form passed to function, test maximun degree
 		max_degree = 0
 		for item in functions:
@@ -405,12 +315,6 @@ class VMAP4Fenics():
 			else: raise ValueError(f'{self.num_integration_points} is an unexpected number of integration points for a tetrahedron. Use 1, 4, 8, 11, 15 as Input.')
 		else: raise ValueError(f'''{str(self.element_shape)} is an unexpected element shape. Use 'triangle' or 'tetrahedron'.''')
 		return integration_id
-
-	def export_to_vmap(self):
-		# writing variables...
-		for key in self.state_list:
-			self.vmap_file.writeVariablesBlock(f"/VMAP/VARIABLES/STATE-{key}/{self.geometry_id}", self.state_list[key])
-
 
 	def _determine_vmap_element(self, element_type, element_degree):
 		# get number of "nodes" from element type and polynomial degree
@@ -536,22 +440,5 @@ class VMAP4Fenics():
 					fenics_connectivity[5]]
 		else: raise ValueError(f'{element_type} is an unexpected element type.')
 
-	def write_state(self, problem, evaluation_function = lambda dict: dict):
-		# Loop over all States/
-		self.set_variable_displacement(problem.displacement)
-		self.set_variable_stress(problem.stress, symmetric=True)
-		dict = {sensorname: (sensor.LOCATION, sensor.data[sensor.dataoffset[-1]:len(sensor.data)]) for sensorname, sensor in problem.sensors.items()}
-		for name, (location, data) in evaluation_function(dict).items():
-			self.set_variable(name = name.upper(),
-								values = data,
-								location = location,
-								)
-		self.next_state()
-
-	def setup(self, problem):
-		self.set_geometry(problem.V, problem)
-		self.set_material(name = problem.name,
-							material_id = problem.material_id,
-							**problem.material_optional,
-							paramters = [(x, f'Data field for {x.lower()}', y) for (x, y) in problem.p.items()]
-							)
+	def write_state(self):
+		self.vmap_file.writeVariablesBlock(f"/VMAP/VARIABLES/STATE-{self.state_id}/{self.geometry_id}", self.state)
