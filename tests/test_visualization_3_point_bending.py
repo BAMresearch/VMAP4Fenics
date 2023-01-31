@@ -34,7 +34,7 @@ def three_point_bending_example(E, nu):
 
 	# setting up the problem
 	experiment = fenics_concrete.ConcreteBeamExperiment(parameters)
-	problem = fenics_concrete.LinearElasticity(experiment, parameters)
+	problem = fenics_concrete.LinearElasticity(experiment = experiment, parameters = parameters, pv_name = 'test', vmapoutput = True)
 	problem.set_material(name = 'Linear_Concrete_Beam',
 					state = 'solid',
 					type= 'concrete',
@@ -43,9 +43,6 @@ def three_point_bending_example(E, nu):
 					idealization = 'continuum',
 					physics = 'solid mechanics'
 					)
-	wrapper = VMAP4Fenics.VMAP4Fenics(filename = 'test', paraview_output = False, output_path = 'resultsBeam')
-	wrapper.write_metadata(user_id='ahannes')
-	wrapper.setup(problem)
 
 	# applying the load
 	problem.experiment.apply_displ_load(displacement)
@@ -56,13 +53,6 @@ def three_point_bending_example(E, nu):
 
 	# solving the problem
 	problem.solve(t=0)  # solving this
-	def evaluation_function(dict):
-		location, data = dict['StressSensor']
-		data = data[0]
-		dict['StressSensor'] = location, data
-		return dict
-	wrapper.write_state(problem, evaluation_function)
-	wrapper.export_to_vmap()
 
 
 # example of how to use this function

@@ -18,16 +18,11 @@ class VMAP4Fenics():
 
 		# initiale the vmap object
 		VMAP.Initialize()
-		if not isdir(output_path):
-			mkdir(output_path)
-		self.output_path = output_path + '/'
-		self.vmap_file = VMAP.VMAPFile(f'{self.output_path}{filename}_VMAP.h5')
+		if not isdir(output_path): mkdir(output_path)
+		self.vmap_file = VMAP.VMAPFile(f'{output_path}/{filename}_VMAP.h5')
 
 		self.state_id = 0
-		# sum of timesteps
 		self.time = 0
-		#self.next_state(incr=0, state_name='Initial conditions')
-		self.variable_id = 0
 
 	def write_metadata(self, user_id = 'unknown', description = 'FEM Simulation'):
 		meta_info = VMAP.sMetaInformation()
@@ -76,13 +71,12 @@ class VMAP4Fenics():
 		vsystems.push_back(csys)
 		self.vmap_file.writeCoordinateSystems("/VMAP/SYSTEM",vsystems)	
 
-	def set_material(self, name, material_id, material_type = 'unknown', material_description = 'unknown', 
+	def set_material(self, material_name, material_id, material_type = 'unknown', material_description = 'unknown', 
 					material_state = 'solid', material_idealization = 'unknown', physics = 'unknown', 
 					solution = 'unknown', paramters = None):
-		
 		self.material = VMAP.sMaterial()
 		# TODO automatic material counter, maybe with optional direct number attribuite and a check if id exists...
-		self.material.setMaterialName(name.upper())
+		self.material.setMaterialName(material_name.upper())
 		# solid, liquid, gas ...
 		self.material.setMaterialState(material_state)
 		self.material.setMaterialType(material_type)
@@ -115,29 +109,23 @@ class VMAP4Fenics():
 		self.vector_material.push_back(self.material)
 		self.vmap_file.writeMaterialBlock(self.vector_material)
 
-
-
-	#def __call__(self, inp):
 	def next_state(self, dt = 0, incr = 1, state_name = None, time = None):
 		self.state = VMAP.VectorTemplateStateVariable()
 		self.state_id += incr
-		self.time += dt
-		# if a specific value is given, this overrides the "calculated" time
-		# this can be useful when only plotting a certain timesteps
-		if time:
-			self.time = time
+		self.time = time if time else self.time + dt
+		if not state_name: state_name = f'Loading at time {self.time}'
+		self.variable_id = 0
 
-		# set a default name for the new state
-		if not state_name:
-			state_name = f'Loading at time {self.time}'
 		# add new vmap state
 		self.vmap_file.createVariablesGroup(self.state_id, self.geometry_id)
 		# increment is preset to 1. values larger 1 would allow for multiple increments in one step (for whatever reason)
-		self.vmap_file.setVariableStateInformation(stateId=self.state_id, stateName=state_name,
-										 totalTime=self.time, stepTime=dt, increment=1)
+		self.vmap_file.setVariableStateInformation(stateId = self.state_id, stateName = state_name,
+										 totalTime = self.time, stepTime = dt, increment = 1)
+
+	def write_state(self):
+		self.vmap_file.writeVariablesBlock(f"/VMAP/VARIABLES/STATE-{self.state_id}/{self.geometry_id}", self.state)
 
 	def set_geometry(self, vector_function_space : df.VectorFunctionSpace, functions : list[str, Form] = None, geometry_name : str = 'Mesh'):
-
 		# includes data for gemoetry: nodes, element, element type
 		self.vector_function_space = vector_function_space
 
@@ -233,12 +221,16 @@ class VMAP4Fenics():
 			elif values.ndim == 2:
 				dimension = values.shape[1]
 				value_list = values.flatten().tolist()
-			else: raise NotImplementedError()
+			else: raise NotImplementedError(f"Dim {values.ndim} not supported")
 		elif isinstance(values, list):
 			dimension = len(values)
 			value_list = values
+		elif isinstance(values, float):
+			dimension = 1
+			value_list = [values]
+			print(value_list)
 		else:
-			raise NotImplementedError()
+			raise NotImplementedError(f"Type {type(values)} not supported")
 
 		# generate description from name
 		if not description:
@@ -246,7 +238,7 @@ class VMAP4Fenics():
 
 		# TODO ask what is the most user friendly way...
 		# convert location description to VMAP loaction number
-		if isinstance(location, str): location_int = self.get_location_int_from_location(location)
+		if isinstance(location, str): location_int = self._get_location_int_from_location(location)
 		else: raise NotImplementedError()
 
 		# TODO setGeometryIds for which this data is defined.... how.... ?????
@@ -270,12 +262,13 @@ class VMAP4Fenics():
 		self.state.push_back(variable)
 		self.variable_id += 1
 
-	def get_location_int_from_location(self, location):
+	def _get_location_int_from_location(self, location):
 		loc2locint = {'GLOBAL': 1, 'NODE': 2, 'ELEMENT': 3, 'INTEGRATION POINT': 4, 'ELEMENT FACE': 5}
 		if location.upper() in loc2locint: return loc2locint[location.upper()]
 		raise ValueError(f'''{location} is an unexpected location string. 
 					Use 'GLOBAL', 'NODE', 'INTEGRATION POINT' or 'ELEMENT FACE' as Input.''')
 
+	# TODO currently not used
 	def get_location_int_from_num(self, location):
 		mesh = self.vector_function_space.mesh()
 		num2locint = {1: 1, mesh.num_vertices(): 2, mesh.num_cells(): 3, self.num_integration_points: 4, mesh.num_faces(): 5}
@@ -439,6 +432,3 @@ class VMAP4Fenics():
 					fenics_connectivity[4],
 					fenics_connectivity[5]]
 		else: raise ValueError(f'{element_type} is an unexpected element type.')
-
-	def write_state(self):
-		self.vmap_file.writeVariablesBlock(f"/VMAP/VARIABLES/STATE-{self.state_id}/{self.geometry_id}", self.state)
