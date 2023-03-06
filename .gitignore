@@ -2,3 +2,6 @@ __pycache__
 build
 dist
 vmap4fenics.egg-info
+*.h5
+*.msh
+*.xdmf

@@ -1,8 +1,5 @@
-# the order of imports is IMPORTANT
 from vmap4fenics import VMAP4Fenics
-import dolfin as df
 import fenics_concrete
-import numpy as np
 
 # define problem
 parameters = fenics_concrete.Parameters()
@@ -31,4 +28,5 @@ problem.set_material(name = 'Linear_Concrete',
 displacement_list = [1,5,10]
 # loop over all measured displacements
 for displacement in displacement_list:
+	problem.experiment.apply_displ_load(displacement)
 	problem.solve()  # solving this
