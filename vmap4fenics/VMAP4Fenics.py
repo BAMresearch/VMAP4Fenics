@@ -71,9 +71,15 @@ class VMAP4Fenics():
 		vsystems.push_back(csys)
 		self.vmap_file.writeCoordinateSystems("/VMAP/SYSTEM",vsystems)	
 
-	def set_material(self, material_name, material_id, material_type = 'unknown', material_description = 'unknown', 
-					material_state = 'solid', material_idealization = 'unknown', physics = 'unknown', 
-					solution = 'unknown', paramters = None):
+	def set_material(self, material_name,
+					material_id, 
+					material_type = 'unknown', 
+					material_description = 'unknown', 
+					material_state = 'solid', 
+					material_idealization = 'unknown', 
+					physics = 'unknown', 
+					solution = 'unknown', 
+					paramters = None):
 		self.material = VMAP.sMaterial()
 		# TODO automatic material counter, maybe with optional direct number attribuite and a check if id exists...
 		self.material.setMaterialName(material_name.upper())
@@ -248,7 +254,7 @@ class VMAP4Fenics():
 		variable = VMAP.sStateVariable()
 		variable.setIdentifier(self.variable_id)
 		variable.setCoordinateSystem(coordinatesystem)
-		variable.setVariableName(name)
+		variable.setVariableName(name + str(self.variable_id))
 		variable.setVariableDescription(description)
 		variable.setDimension(dimension)
 		variable.setLocation(loc = location_int)
