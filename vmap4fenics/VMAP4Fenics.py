@@ -234,7 +234,6 @@ class VMAP4Fenics():
 		elif isinstance(values, float):
 			dimension = 1
 			value_list = [values]
-			print(value_list)
 		else:
 			raise NotImplementedError(f"Type {type(values)} not supported")
 

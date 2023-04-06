@@ -13,7 +13,7 @@ URL = 'https://github.com/BAMresearch/VMAP4Fenics'
 EMAIL = 'Hannes.Albrecht@bam.de'
 AUTHOR = 'Hannes Albrecht'
 REQUIRES_PYTHON = '>=3.9.0'
-VERSION = '0.0.1'
+VERSION = '0.1.0'
 
 # What packages are required for this module to be executed?
 REQUIRED = []
