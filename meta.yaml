@@ -31,6 +31,16 @@ about:
   home: https://github.com/BAMresearch/VMAP4Fenics
   summary: 'VMAP Wrapper for Fenics FEM Simulations'
   license: MIT
+  description: |
+    VMAP4Fenics is a wrapper that acts as a bridge between the Python interface 
+    of VMAP and Finite Element Method (FEM) simulations conducted using Fenics. 
+    The Wrapper extracts the geometry describing a Fenics problem from a Dolfin 
+    Vector Function Space and stores the geometry among other information in an 
+    HDF5 file. This Project is integrated in FenicsConrete and LeBeDigital 
+    storing the results of concrete simulations conducted by 
+    [BAM](https://www.bam.de/Navigation/EN/Home/home.html) (Bundesanstalt für 
+    Materialforschung und -prüfung) the German Federal Institute for Materials 
+    Research and Testing.
 
 extra:
   recipe-maintainers:
